@@ -6,7 +6,7 @@ require('dotenv').config();
 const superagent = require('superagent');
 const pg = require('pg');
 
-const client = new pg.Client(process.env.DB_ADDRESS);
+const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 
 const app = express();
@@ -39,6 +39,12 @@ function handleError(error, response) {
   response.status(error.status || 500).send(error.message);
 }
 
+// function select(table, column, value){
+//   const SQL = `SELECT * FROM ${table} WHERE ${column}=$1`;
+//   const VALUES = [value]
+// }
+
+
 app.get('/location', (request, response) => {
   const query = 'SELECT * FROM locations WHERE search_query=$1;';
   const values = [request.query.data];
@@ -57,14 +63,14 @@ app.get('/location', (request, response) => {
         .catch((error) => handleError(error, response));
     } else {
       console.log(results.rows[0]);
-      response.send(new Location(request.query.data, results.rows[0].formatted_query, results.rows[0].latitude, results.rows[0].longitude));
+      response.send(results.rows[0]);
     }
   }).catch(error => console.log(error));
 });
 
 app.get('/events', (request, response) => {
   const query = 'SELECT * FROM events WHERE link=$1;';
-  const values = [request.query.data];
+  const values = [request.query.data.search_query];
 
   client.query(query, values).then(results => {
     if (results.rows.length === 0) {
@@ -75,13 +81,13 @@ app.get('/events', (request, response) => {
           const events = eventData.body.events.slice(0, sliceIndex).map((event) => new Event(event.url, event.name.text, event.start.local, event.description.text));
           const query = 'INSERT INTO events (link, name, event_date, summary) VALUES ($1, $2, $3, $4)';
           const values = Object.values(events);
-          client.query(query, values).catch((...args) => console.log(args));
+          client.query(query, values);
           response.send(events);
         })
         .catch((error) => handleError(error, response));
     } 
     else {
-      response.send(new Event(results.rows[0].link, results.rows[0].name, results.rows[0].event_date, results.rows[0].summary));
+      response.send(results.rows[0]);
     }
   }).catch(error => console.log(error));
 });
