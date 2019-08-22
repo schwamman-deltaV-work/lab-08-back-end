@@ -28,11 +28,11 @@ function Weather(weatherData) {
   this.time = convertTime(weatherData.time * 1000);
 }
 
-function Event(eventData) {
-  this.link = eventData.url;
-  this.name = eventData.name.text;
-  this.event_date = eventData.url;
-  this.summary = eventData.description.text;
+function Event(url, name, date, summary) {
+  this.link = url;
+  this.name = name;
+  this.event_date = date;
+  this.summary = summary;
 }
 
 function handleError(error, response) {
@@ -63,14 +63,27 @@ app.get('/location', (request, response) => {
 });
 
 app.get('/events', (request, response) => {
-  superagent
-    .get(`https://www.eventbriteapi.com/v3/events/search/?token=${process.env.EVENTBRITE_API_KEY}&location.latitude=${request.query.data.latitude}&location.longitude=${request.query.data.longitude}&location.within=10km`)
-    .then((eventData) => {
-      const sliceIndex = eventData.body.events.length > 20 ? 20 : eventData.body.events.length;
-      const events = eventData.body.events.slice(0, sliceIndex).map((event) => new Event(event));
-      response.send(events);
-    })
-    .catch((error) => handleError(error, response));
+  const query = 'SELECT * FROM events WHERE link=$1;';
+  const values = [request.query.data];
+
+  client.query(query, values).then(results => {
+    if (results.rows.length === 0) {
+      superagent
+        .get(`https://www.eventbriteapi.com/v3/events/search/?token=${process.env.EVENTBRITE_API_KEY}&location.latitude=${request.query.data.latitude}&location.longitude=${request.query.data.longitude}&location.within=10km`)
+        .then((eventData) => {
+          const sliceIndex = eventData.body.events.length > 20 ? 20 : eventData.body.events.length;
+          const events = eventData.body.events.slice(0, sliceIndex).map((event) => new Event(event.url, event.name.text, event.start.local, event.description.text));
+          const query = 'INSERT INTO events (link, name, event_date, summary) VALUES ($1, $2, $3, $4)';
+          const values = Object.values(events);
+          client.query(query, values).catch((...args) => console.log(args));
+          response.send(events);
+        })
+        .catch((error) => handleError(error, response));
+    } 
+    else {
+      response.send(new Event(results.rows[0].link, results.rows[0].name, results.rows[0].event_date, results.rows[0].summary));
+    }
+  }).catch(error => console.log(error));
 });
 
 app.get('/weather', (request, response) => {
