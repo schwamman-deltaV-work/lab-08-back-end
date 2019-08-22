@@ -54,15 +54,17 @@ app.get('/location', (request, response) => {
       superagent
         .get(`https://maps.googleapis.com/maps/api/geocode/json?address=${request.query.data}&key=${process.env.GEOCODE_API_KEY}`)
         .then((locationData) => {
-          const location = new Location(request.query.data, locationData.body.results[0].formatted_query, locationData.body.results[0].geometry.location.lat, locationData.body.results[0].geometry.location.lng);
+          const location = new Location(request.query.data, locationData.body.results[0].formatted_address, locationData.body.results[0].geometry.location.lat, locationData.body.results[0].geometry.location.lng);
           const query = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4)';
           const values = Object.values(location);
+          console.log(values);
           client.query(query, values).catch((...args) => console.log(args));
+          console.log('sent from api');
           response.send(location);
         })
         .catch((error) => handleError(error, response));
     } else {
-      console.log(results.rows[0]);
+      console.log('sent from db');
       response.send(results.rows[0]);
     }
   }).catch(error => console.log(error));
