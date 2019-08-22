@@ -6,7 +6,7 @@ require('dotenv').config();
 const superagent = require('superagent');
 const pg = require('pg');
 
-const client = new pg.Client(process.env.DB_ADDRESS);
+const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 
 const app = express();
@@ -28,16 +28,22 @@ function Weather(weatherData) {
   this.time = convertTime(weatherData.time * 1000);
 }
 
-function Event(eventData) {
-  this.link = eventData.url;
-  this.name = eventData.name.text;
-  this.event_date = eventData.url;
-  this.summary = eventData.description.text;
+function Event(url, name, date, summary) {
+  this.link = url;
+  this.name = name;
+  this.event_date = date;
+  this.summary = summary;
 }
 
 function handleError(error, response) {
   response.status(error.status || 500).send(error.message);
 }
+
+// function select(table, column, value){
+//   const SQL = `SELECT * FROM ${table} WHERE ${column}=$1`;
+//   const VALUES = [value]
+// }
+
 
 app.get('/location', (request, response) => {
   const query = 'SELECT * FROM locations WHERE search_query=$1;';
@@ -57,20 +63,33 @@ app.get('/location', (request, response) => {
         .catch((error) => handleError(error, response));
     } else {
       console.log(results.rows[0]);
-      response.send(new Location(request.query.data, results.rows[0].formatted_query, results.rows[0].latitude, results.rows[0].longitude));
+      response.send(results.rows[0]);
     }
   }).catch(error => console.log(error));
 });
 
 app.get('/events', (request, response) => {
-  superagent
-    .get(`https://www.eventbriteapi.com/v3/events/search/?token=${process.env.EVENTBRITE_API_KEY}&location.latitude=${request.query.data.latitude}&location.longitude=${request.query.data.longitude}&location.within=10km`)
-    .then((eventData) => {
-      const sliceIndex = eventData.body.events.length > 20 ? 20 : eventData.body.events.length;
-      const events = eventData.body.events.slice(0, sliceIndex).map((event) => new Event(event));
-      response.send(events);
-    })
-    .catch((error) => handleError(error, response));
+  const query = 'SELECT * FROM events WHERE link=$1;';
+  const values = [request.query.data.search_query];
+
+  client.query(query, values).then(results => {
+    if (results.rows.length === 0) {
+      superagent
+        .get(`https://www.eventbriteapi.com/v3/events/search/?token=${process.env.EVENTBRITE_API_KEY}&location.latitude=${request.query.data.latitude}&location.longitude=${request.query.data.longitude}&location.within=10km`)
+        .then((eventData) => {
+          const sliceIndex = eventData.body.events.length > 20 ? 20 : eventData.body.events.length;
+          const events = eventData.body.events.slice(0, sliceIndex).map((event) => new Event(event.url, event.name.text, event.start.local, event.description.text));
+          const query = 'INSERT INTO events (link, name, event_date, summary) VALUES ($1, $2, $3, $4)';
+          const values = Object.values(events);
+          client.query(query, values);
+          response.send(events);
+        })
+        .catch((error) => handleError(error, response));
+    } 
+    else {
+      response.send(results.rows[0]);
+    }
+  }).catch(error => console.log(error));
 });
 
 app.get('/weather', (request, response) => {
