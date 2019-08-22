@@ -10,6 +10,7 @@ CREATE TABLE locations (
 DROP TABLE IF EXISTS weather;
 
 CREATE TABLE weather (
+  location_id VARCHAR(255),
   forecast VARCHAR(255),
   time VARCHAR(255)
 );
@@ -17,8 +18,9 @@ CREATE TABLE weather (
 DROP TABLE IF EXISTS events;
 
 CREATE TABLE events (
+  search_query VARCHAR(255),
   link VARCHAR(255),
   name VARCHAR(255),
   event_date VARCHAR(255),
-  summary VARCHAR(2000)
+  summary VARCHAR
 );
