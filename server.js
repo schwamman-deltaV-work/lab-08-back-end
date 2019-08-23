@@ -14,10 +14,10 @@ const app = express();
 app.use(cors());
 
 const timeouts = {
-  weather: 15000,
-  yelp: 15000,
-  events: 15000,
-  movies: 15000,
+  weather: 3600000,
+  yelp: 86400000,
+  events: 86400000,
+  movies: 86400000,
 };
 
 app.get('/location', getLocation);
